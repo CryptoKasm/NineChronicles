@@ -1,0 +1,61 @@
+on:  
+  push:
+    tags:
+      - 'v*'
+
+name: Build unity 'rc'
+
+jobs:
+  build-unity-release:
+    name: build-unity-release-${{ matrix.targetPlatform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        projectPath:
+          - nekoyume
+        unityVersion:
+          - 2020.3.4f1
+        targetPlatform:
+          - Windows
+          - macOS
+          - Linux
+    steps:
+      - name: Set environment variables
+        run: |
+          targetPlatform=${{ matrix.targetPlatform }}
+          echo "TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+
+          if [ "$targetPlatform" == "Windows" ]; then
+            echo "DOCKER_IMAGE_TAG=${{ matrix.unityVersion }}-windows-mono-0.11" >> $GITHUB_ENV
+          elif [ "$targetPlatform" == "macOS" ]; then
+            echo "DOCKER_IMAGE_TAG=${{ matrix.unityVersion }}-mac-mono-0.11" >> $GITHUB_ENV
+          elif [ "$targetPlatform" == "Linux" ]; then
+            echo "DOCKER_IMAGE_TAG=${{ matrix.unityVersion }}-linux-il2cpp-0.11" >> $GITHUB_ENV
+          fi
+      - uses: actions/checkout@v2
+        with:
+          lfs: true
+          submodules: recursive
+      # - uses: actions/cache@v2
+      #   with:
+      #     path: ${{ matrix.projectPath }}/Library
+      #     key: ${{ matrix.targetPlatform }}-${{ matrix.projectPath }}-Library-v4
+      - name: Build Unity Player using docker
+        run: |
+          docker run \
+            --env ULF="${{ secrets.ULF_2020_3_0_F1 }}" \
+            -w "${{ github.workspace }}" \
+            -v "${{ github.workspace }}":"${{ github.workspace }}" \
+            unityci/editor:${DOCKER_IMAGE_TAG} \
+            scripts/build-player.sh ${{ matrix.targetPlatform }}
+
+      - name: Show files
+        run: |
+          ls -R ${{ github.workspace }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: 9c-unity-release-${{ matrix.targetPlatform }}-${{ env.TAG }}
+          path: nekoyume/Build/${{ matrix.targetPlatform }}/**/*
+          retention-days: 7
