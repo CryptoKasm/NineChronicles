@@ -77,15 +77,15 @@ jobs:
           Windows="${{ github.workspace }}/9c-unity-release-Windows-${{ env.TAG }}"
 
           cd $Linux
-          zip -R $Linux.zip *
+          zip -r $Linux.zip .
           cd ${{ github.workspace }}
 
           cd $macOS
-          zip -R $macOS.zip *
+          zip -r $macOS.zip .
           cd ${{ github.workspace }}
 
           cd $Windows
-          zip -R $Windows.zip *
+          zip -r $Windows.zip .
           cd ${{ github.workspace }}
           
           ls -R ${{ github.workspace }}
