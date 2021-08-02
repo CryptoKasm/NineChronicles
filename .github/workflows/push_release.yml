@@ -1,0 +1,108 @@
+on:  
+  push:
+    tags:
+      - 'v*' 
+  workflow_dispatch:  # click the button on Github repo!
+
+name: Push unity 'rc' as release
+
+jobs:
+  push-unity-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # - name: Get recent tag
+      #   id: recentTag
+      #   uses: jimschubert/query-tag-action@v1
+      #   with:
+      #     include: 'v*'
+
+      - name: Set environment variables
+        run: |
+          echo "TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+
+      - name: Show Tag
+        id: display
+        run: |
+          echo 'Recent Tag: ${{ env.TAG }}'
+
+      - name: Changelog
+        uses: scottbrenner/generate-changelog-action@master
+        id: Changelog
+
+      - name: Wait on build 'unity' - Linux
+        uses: tomchv/wait-my-workflow@v1.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: 'build-unity-release-Linux'
+          ref: ${{ github.sha }}
+          intervalSeconds: 60
+          timeoutSeconds: 3600
+
+      - name: Wait on build 'unity' - macOS
+        uses: tomchv/wait-my-workflow@v1.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: 'build-unity-release-macOS'
+          ref: ${{ github.sha }}
+          intervalSeconds: 60
+          timeoutSeconds: 3600
+
+      - name: Wait on build 'unity' - Windows
+        uses: tomchv/wait-my-workflow@v1.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: 'build-unity-release-Windows'
+          ref: ${{ github.sha }}
+          intervalSeconds: 60
+          timeoutSeconds: 3600
+
+      - name: Download artifacts
+        id: download-artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          workflow: build_release.yml
+          workflow_conclusion: success
+
+      - name: Compress files
+        id: compress-files
+        if: steps.download-artifacts.outcome  == 'success'
+        run: |
+          Linux="${{ github.workspace }}/9c-unity-release-Linux-${{ env.TAG }}"
+          macOS="${{ github.workspace }}/9c-unity-release-macOS-${{ env.TAG }}"
+          Windows="${{ github.workspace }}/9c-unity-release-Windows-${{ env.TAG }}"
+
+          cd $Linux
+          zip -R $Linux.zip *
+          cd ${{ github.workspace }}
+
+          cd $macOS
+          zip -R $macOS.zip *
+          cd ${{ github.workspace }}
+
+          cd $Windows
+          zip -R $Windows.zip *
+          cd ${{ github.workspace }}
+          
+          ls -R ${{ github.workspace }}
+          echo "${{ steps.Changelog.outputs.changelog }}"
+
+      - name: Release
+        if: steps.compress-files.outcome  == 'success'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ env.TAG }}       
+          tag_name: ${{ env.TAG }}
+          body: |
+            ${{ steps.Changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            9c-unity-release-Linux-${{ env.TAG }}.zip
+            9c-unity-release-macOS-${{ env.TAG }}.zip
+            9c-unity-release-Windows-${{ env.TAG }}.zip
